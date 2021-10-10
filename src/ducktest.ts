@@ -4,6 +4,10 @@ import { Ordering, Reporter, Report, Stream, tap } from './tap-output.js';
 import { TestError } from './test-error.js';
 import { SyncAsync, commit } from './commitment.js';
 
+enum TestResult {
+    Pass,
+    Fail
+}
 interface Context {
     testcase?: TestImpl;
     subcase?: TestImpl;
@@ -14,7 +18,7 @@ interface Tester {
     subcase: Test;
     fixture: Test;
     report(): Report;
-    run(reporter: Reporter): SyncAsync;
+    run(reporter: Reporter): SyncAsync<TestResult>;
 }
 type Test = (description: string, spec: () => SyncAsync) => SyncAsync;
 type Action = (description: string, action: (tester: Tester) => SyncAsync) => SyncAsync;
@@ -59,7 +63,7 @@ function runCase(runner: ContextRunner, subcasesOnPath: Iterable<string> = [], s
                         child.description,
                         spec));
 
-                if (promises.length > 0)
+                if (promises.length > 0 && promises.find(p => p))
                     return Promise.all(promises).then(() => { /*void*/ });
             })
             .honour());
@@ -203,6 +207,7 @@ function makeSynchronousTester(): Tester {
             .then(() => stack.promise)
             .then(() => report.end())
             .catch(e => report.bailOut(e))
+            .then(() => report.success ? TestResult.Pass : TestResult.Fail)
             .honour();
     }
 
@@ -217,7 +222,7 @@ function makeSynchronousTester(): Tester {
     };
 }
 
-function makePlanningInterface(runPlan: (reporter: Reporter, plan: Plan) => SyncAsync): Tester {
+function makePlanningInterface(runPlan: (reporter: Reporter, plan: Plan) => SyncAsync<TestResult>): Tester {
     const plan: Plan = [];
     return {
         testcase(description, spec) {
@@ -244,7 +249,7 @@ export const defaultReporter: Reporter = tap(console.log);
 export class Suite {
     #runner = makeSynchronousTester();
 
-    report(output?: Stream | Reporter): SyncAsync {
+    report(output?: Stream | Reporter): SyncAsync<TestResult> {
         const reporter = output
             ? ('beginReport' in output)
                 ? output as Reporter
@@ -288,4 +293,6 @@ export const report = s.report.bind(s);
 export const fixture = s.fixture.bind(s);
 export const message = s.message.bind(s);
 
-process?.once?.('beforeExit', report);
+process?.once?.('beforeExit', async () => {
+    process.exit(await report());
+});
