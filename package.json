@@ -1,6 +1,6 @@
 {
   "name": "@strangeskies/ducktest",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "A JavaScript/TypeScript testing framework",
   "main": "dist/ducktest.js",
   "types": "dist/ducktest.d.ts",
